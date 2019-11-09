@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
@@ -215,25 +214,10 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void timer_interrupt(struct intr_frame *args UNUSED) {
 	ticks++;
-	/*
-	struct thread *ptr_thread;
-	while (list_empty(alarm_list)) {
-		top = list_entry(list_front(&alarm_list), struct thread, elem);
-
-		if (ptr_thread->ticks_wakeup <= timer_ticks()) {
-			list_pop_front(&alarm_list);
-			thread_unblock(alarm_list);
-		}
-		else {
-			break;
-		}
-	}
-	*/
-
 	thread_tick();
 	alarm_unblock();
 }
