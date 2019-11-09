@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
@@ -30,13 +31,25 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+bool has_thread_less_ticks(const struct list_elem *ptr_elem1, const struct list_elem *ptr_elem2);
+void alarm_block(int64_t ticks_wakeup, struct thread *ptr_thread);
+void alarm_unblock(void);
+
+struct alarm {
+	int64_t ticks_wakeup;
+	struct thread *ptr_thread;
+	struct list_elem elem;
+};
+
+static struct list alarm_list;
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
-void
-timer_init (void) 
-{
-  pit_configure_channel (0, 2, TIMER_FREQ);
-  intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+void timer_init (void) {
+	pit_configure_channel (0, 2, TIMER_FREQ);
+	intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+
+	list_init(&alarm_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,16 +97,53 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+bool has_thread_less_ticks(const struct list_elem *ptr_elem1, const struct list_elem *ptr_elem2) {
+	struct alarm *ptr_alarm1 = list_entry(ptr_elem1, struct alarm, elem);
+	struct alarm *ptr_alarm2 = list_entry(ptr_elem2, struct alarm, elem);
+
+	return (ptr_alarm1->ticks_wakeup < ptr_alarm2->ticks_wakeup) ? true : false;
+}
+
+void alarm_block(int64_t ticks_wakeup, struct thread *ptr_thread) {
+	struct alarm *ptr_alarm = (struct alarm *) malloc(sizeof(struct alarm));
+	ptr_alarm->ticks_wakeup = ticks_wakeup;
+	ptr_alarm->ptr_thread = ptr_thread;
+
+	list_insert_ordered(&alarm_list, &ptr_alarm->elem, has_thread_less_ticks, NULL);
+	thread_block();
+}
+
+void alarm_unblock(void) {
+	struct alarm *ptr_alarm;
+	
+	while(!list_empty(&alarm_list)) {
+		ptr_alarm = list_entry(list_front(&alarm_list), struct alarm, elem);
+		if (ptr_alarm->ticks_wakeup <= timer_ticks()) {
+			list_pop_front(&alarm_list);
+			thread_unblock(ptr_alarm->ptr_thread);
+		}
+		else
+			break;
+	}
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
-void
-timer_sleep (int64_t ticks) 
-{
-  int64_t start = timer_ticks ();
+void timer_sleep(int64_t ticks) {
+	ASSERT (intr_get_level () == INTR_ON);
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+	/* ORIGINAL CODE */
+	/*
+	while (timer_elapsed (start) < ticks) 
+		thread_yield ();
+	*/
+
+	enum intr_level old_level;
+	old_level = intr_disable();
+	
+	alarm_block((timer_ticks() + ticks), thread_current());
+	
+	intr_set_level(old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -167,11 +217,25 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
-static void
-timer_interrupt (struct intr_frame *args UNUSED)
-{
-  ticks++;
-  thread_tick ();
+static void timer_interrupt(struct intr_frame *args UNUSED) {
+	ticks++;
+	/*
+	struct thread *ptr_thread;
+	while (list_empty(alarm_list)) {
+		top = list_entry(list_front(&alarm_list), struct thread, elem);
+
+		if (ptr_thread->ticks_wakeup <= timer_ticks()) {
+			list_pop_front(&alarm_list);
+			thread_unblock(alarm_list);
+		}
+		else {
+			break;
+		}
+	}
+	*/
+
+	thread_tick();
+	alarm_unblock();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
