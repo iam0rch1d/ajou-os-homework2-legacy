@@ -44,7 +44,7 @@ static struct list alarm_list;
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
-void timer_init (void) {
+void timer_init(void) {
 	pit_configure_channel (0, 2, TIMER_FREQ);
 	intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
@@ -129,7 +129,7 @@ void alarm_unblock(void) {
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void timer_sleep(int64_t ticks) {
-	ASSERT (intr_get_level () == INTR_ON);
+	ASSERT(intr_get_level() == INTR_ON);
 
 	/* ORIGINAL CODE */
 	/*
@@ -218,7 +218,12 @@ timer_print_stats (void)
 /* Timer interrupt handler. */
 static void timer_interrupt(struct intr_frame *args UNUSED) {
 	ticks++;
+	
+	/* V1 CODE */
+	/*
 	thread_tick();
+	*/
+	
 	alarm_unblock();
 }
 
