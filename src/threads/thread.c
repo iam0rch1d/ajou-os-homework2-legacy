@@ -75,7 +75,7 @@ bool has_thread_less_priority(const struct list_elem *ptr_elem1, const struct li
 	struct thread *ptr_thread1 = list_entry(ptr_elem1, struct thread, elem);
 	struct thread *ptr_thread2 = list_entry(ptr_elem2, struct thread, elem);
 
-	return (ptr_thread1->priority < ptr_thread2->priority) ? true : false;
+	return (ptr_thread1->priority > ptr_thread2->priority);
 }
 
 /* Initializes the threading system by transforming the code
@@ -169,54 +169,54 @@ thread_print_stats (void)
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
-tid_t
-thread_create (const char *name, int priority,
-               thread_func *function, void *aux) 
-{
-  struct thread *t;
-  struct kernel_thread_frame *kf;
-  struct switch_entry_frame *ef;
-  struct switch_threads_frame *sf;
-  tid_t tid;
-  enum intr_level old_level;
+tid_t thread_create(const char *name, int priority, thread_func *function, void *aux) {
+	struct thread *t;
+	struct kernel_thread_frame *kf;
+	struct switch_entry_frame *ef;
+	struct switch_threads_frame *sf;
+	tid_t tid;
+	enum intr_level old_level;
 
-  ASSERT (function != NULL);
+	ASSERT(function != NULL);
 
-  /* Allocate thread. */
-  t = palloc_get_page (PAL_ZERO);
-  if (t == NULL)
-    return TID_ERROR;
+	/* Allocate thread. */
+	t = palloc_get_page(PAL_ZERO);
+	if (t == NULL)
+		return TID_ERROR;
 
-  /* Initialize thread. */
-  init_thread (t, name, priority);
-  tid = t->tid = allocate_tid ();
+	/* Initialize thread. */
+	init_thread(t, name, priority);
+	tid = t->tid = allocate_tid();
 
-  /* Prepare thread for first run by initializing its stack.
-     Do this atomically so intermediate values for the 'stack' 
-     member cannot be observed. */
-  old_level = intr_disable ();
+	/* Prepare thread for first run by initializing its stack.
+	   Do this atomically so intermediate values for the 'stack'
+	   member cannot be observed. */
+	old_level = intr_disable();
 
-  /* Stack frame for kernel_thread(). */
-  kf = alloc_frame (t, sizeof *kf);
-  kf->eip = NULL;
-  kf->function = function;
-  kf->aux = aux;
+	/* Stack frame for kernel_thread(). */
+	kf = alloc_frame(t, sizeof *kf);
+	kf->eip = NULL;
+	kf->function = function;
+	kf->aux = aux;
 
-  /* Stack frame for switch_entry(). */
-  ef = alloc_frame (t, sizeof *ef);
-  ef->eip = (void (*) (void)) kernel_thread;
+	/* Stack frame for switch_entry(). */
+ 	ef = alloc_frame(t, sizeof *ef);
+	ef->eip = (void (*) (void)) kernel_thread;
 
-  /* Stack frame for switch_threads(). */
-  sf = alloc_frame (t, sizeof *sf);
-  sf->eip = switch_entry;
-  sf->ebp = 0;
+	/* Stack frame for switch_threads(). */
+	sf = alloc_frame(t, sizeof *sf);
+	sf->eip = switch_entry;
+ 	sf->ebp = 0;
 
-  intr_set_level (old_level);
+	intr_set_level(old_level);
 
-  /* Add to run queue. */
-  thread_unblock (t);
+	/* Add to run queue. */
+	thread_unblock(t);
 
-  return tid;
+	if (priority > thread_current()->priority)
+		thread_yield();
+
+	return tid;
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
