@@ -71,11 +71,11 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-bool has_thread_less_priority(const struct list_elem *ptr_elem1, const struct list_elem *ptr_elem2) {
-	struct thread *ptr_thread1 = list_entry(ptr_elem1, struct thread, elem);
-	struct thread *ptr_thread2 = list_entry(ptr_elem2, struct thread, elem);
+bool has_thread_more_priority(const struct list_elem *ptr_elem_true, const struct list_elem *ptr_elem_false) {
+	struct thread *ptr_thread_true = list_entry(ptr_elem_true, struct thread, elem);
+	struct thread *ptr_thread_false = list_entry(ptr_elem_false, struct thread, elem);
 
-	return (ptr_thread1->priority > ptr_thread2->priority);
+	return (ptr_thread_true->priority > ptr_thread_false->priority);
 }
 
 /* Initializes the threading system by transforming the code
@@ -169,7 +169,7 @@ thread_print_stats (void)
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
-tid_t thread_create(const char *name, int priority, thread_func *function, void *aux) {
+tid_t thread_create (const char *name, int priority, thread_func *function, void *aux) {
 	struct thread *t;
 	struct kernel_thread_frame *kf;
 	struct switch_entry_frame *ef;
@@ -177,7 +177,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
 	tid_t tid;
 	enum intr_level old_level;
 
-	ASSERT(function != NULL);
+	ASSERT (function != NULL);
 
 	/* Allocate thread. */
 	t = palloc_get_page(PAL_ZERO);
@@ -189,7 +189,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
 	tid = t->tid = allocate_tid();
 
 	/* Prepare thread for first run by initializing its stack.
-	   Do this atomically so intermediate values for the 'stack'
+	   Do this atomically so intermediate values for the 'stack' 
 	   member cannot be observed. */
 	old_level = intr_disable();
 
@@ -200,20 +200,20 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
 	kf->aux = aux;
 
 	/* Stack frame for switch_entry(). */
- 	ef = alloc_frame(t, sizeof *ef);
+	ef = alloc_frame(t, sizeof *ef);
 	ef->eip = (void (*) (void)) kernel_thread;
 
 	/* Stack frame for switch_threads(). */
 	sf = alloc_frame(t, sizeof *sf);
 	sf->eip = switch_entry;
- 	sf->ebp = 0;
+	sf->ebp = 0;
 
 	intr_set_level(old_level);
 
 	/* Add to run queue. */
 	thread_unblock(t);
 
-	if (priority > thread_current()->priority)
+	if (thread_current()->priority < priority)
 		thread_yield();
 
 	return tid;
@@ -250,14 +250,13 @@ void thread_unblock(struct thread *ptr_thread) {
 
 	old_level = intr_disable();
 	ASSERT(ptr_thread->status == THREAD_BLOCKED);
-	
+  
 	/* ORIGINAL CODE */
 	/*
-	list_push_back(&ready_list, &t->elem);
+	list_push_back(&ready_list, &ptr_thread->elem);
 	*/
 	
-	list_insert_ordered(&ready_list, &ptr_thread->elem, has_thread_less_priority, NULL);
-
+	list_insert_ordered(&ready_list, &ptr_thread->elem, has_thread_more_priority, NULL);
 	ptr_thread->status = THREAD_READY;
 	if ((thread_current() != idle_thread) && (thread_current()->priority < ptr_thread->priority))
 		thread_yield();
@@ -323,15 +322,21 @@ thread_exit (void)
    may be scheduled again immediately at the scheduler's whim. */
 void thread_yield(void) {
 	enum intr_level old_level;
+  
 	ASSERT(!intr_context());
 
 	old_level = intr_disable();
 	if (thread_current() != idle_thread) 
-		list_insert_ordered(&ready_list, &thread_current()->elem, has_thread_less_priority, NULL);
-	
+		/* ORIGINAL CODE */
+		/*
+		list_push_back(&ready_list, &thread_current->elem);
+		*/
+
+		list_insert_ordered(&ready_list, &thread_current()->elem, has_thread_more_priority, NULL);
+
 	thread_current()->status = THREAD_READY;
 	schedule();
-	
+
 	intr_set_level(old_level);
 }
 

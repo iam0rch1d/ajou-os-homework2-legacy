@@ -30,7 +30,7 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-bool has_thread_less_ticks(const struct list_elem *ptr_elem1, const struct list_elem *ptr_elem2);
+bool has_thread_less_ticks(const struct list_elem *ptr_elem_true, const struct list_elem *ptr_elem_false);
 void alarm_block(int64_t ticks_wakeup, struct thread *ptr_thread);
 void alarm_unblock(void);
 
@@ -96,11 +96,11 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-bool has_thread_less_ticks(const struct list_elem *ptr_elem1, const struct list_elem *ptr_elem2) {
-	struct alarm *ptr_alarm1 = list_entry(ptr_elem1, struct alarm, elem);
-	struct alarm *ptr_alarm2 = list_entry(ptr_elem2, struct alarm, elem);
+bool has_thread_less_ticks(const struct list_elem *ptr_elem_true, const struct list_elem *ptr_elem_false) {
+	struct alarm *ptr_alarm_true = list_entry(ptr_elem_true, struct alarm, elem);
+	struct alarm *ptr_alarm_false = list_entry(ptr_elem_false, struct alarm, elem);
 
-	return (ptr_alarm1->ticks_wakeup < ptr_alarm2->ticks_wakeup) ? true : false;
+	return (ptr_alarm_true->ticks_wakeup < ptr_alarm_false->ticks_wakeup) ? true : false;
 }
 
 void alarm_block(int64_t ticks_wakeup, struct thread *ptr_thread) {
@@ -218,9 +218,7 @@ timer_print_stats (void)
 /* Timer interrupt handler. */
 static void timer_interrupt(struct intr_frame *args UNUSED) {
 	ticks++;
-	
 	thread_tick();
-	
 	alarm_unblock();
 }
 
