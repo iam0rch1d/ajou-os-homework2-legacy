@@ -257,8 +257,6 @@ void thread_unblock(struct thread *ptr_thread) {
 	list_insert_ordered(&ready_list, &ptr_thread->elem, has_thread_more_priority, NULL);
 
 	ptr_thread->status = THREAD_READY;
-	if ((thread_current() != idle_thread) && (thread_current()->priority < ptr_thread->priority))
-		thread_yield();
 
 	intr_set_level(old_level);
 }
@@ -377,6 +375,56 @@ int
 thread_get_priority (void) 
 {
   return thread_current ()->priority;
+}
+
+void thread_add_lock(struct lock *ptr_lock) {
+	enum intr_level old_level = intr_disable();
+	list_insert_ordered(&thread_current()->locks, &ptr_lock->elem, has_lock_more_priority, NULL);
+
+	if (thread_current()->priority < ptr_lock->max_priority) {
+		thread_current()->priority = ptr_lock->max_priority;
+		thread_test_preemption();
+	}
+
+	intr_set_level(old_level);
+}
+
+void thread_remove_lock(struct lock *ptr_lock) {
+	enum intr_level old_level = intr_disable();
+
+	list_remove(&ptr_lock->elem);
+	thread_update_priority(thread_current());
+	
+	intr_set_level(old_level);
+}
+
+void thread_donate_priority(struct thread *ptr_thread) {
+	enum intr_level old_level = intr_disable();
+	thread_update_priority(ptr_thread);
+
+	if (ptr_thread->status == THREAD_READY) {
+		list_remove(&ptr_thread->elem);
+		list_insert_ordered(&ready_list, &ptr_thread->elem, has_thread_more_priority, NULL);
+	}
+
+	intr_set_level(old_level);
+}
+
+void thread_update_priority(struct thread *ptr_thread) {
+	enum intr_level old_level = intr_disable();
+	int max_priority = ptr_thread->base_priority;
+	int lock_priority;
+
+	if (!list_empty(&ptr_thread->locks)) {
+		list_sort(&ptr_thread->locks, has_lock_more_priority, NULL);
+		lock_priority = list_entry(list_front(&ptr_thread->locks), struct lock, elem)->max_priority;
+
+		if (max_priority < lock_priority)
+			max_priority = lock_priority;
+	}
+	
+	ptr_thread->priority = max_priority;
+	intr_set_level(old_level);
 }
 
 void thread_test_preemption(void) {
