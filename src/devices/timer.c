@@ -183,6 +183,7 @@ static void timer_interrupt (struct intr_frame *args UNUSED) {
 	struct thread *ptr_thread;
 	bool preemption = false;
 	
+	ticks++;
 	while (!list_empty(&sleeping_list)) {
 		ptr_elem = list_front(&sleeping_list);
 		ptr_thread = list_entry(ptr_elem, struct thread, elem);
